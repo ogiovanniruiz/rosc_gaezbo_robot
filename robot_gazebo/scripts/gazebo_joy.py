@@ -1,0 +1,87 @@
+#!/usr/bin/python
+
+import rospy
+from sensor_msgs.msg import Joy
+from sensor_msgs.msg import JointState
+import sys
+import numpy as np
+from std_msgs.msg import Float64
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Vector3
+import time
+
+class TeleRobot:
+    def __init__(self):
+        # Initialize ROS
+        self.node_name = "control_node"
+        rospy.init_node(self.node_name)
+
+	# Parameters for subscirbed and published topic
+        twist_topic = rospy.get_param('~/twist_topic')
+	encoder_topic = rospy.get_param('~/encoder_topic')
+
+	front_left_command = rospy.get_param('~/front_left_topic')
+	front_right_command = rospy.get_param('~/front_right_topic')
+	back_left_command = rospy.get_param('~/back_left_topic')
+	back_right_command = rospy.get_param('~/back_right_topic')
+
+        # Subscribe and Publish to Topics
+        rospy.Subscriber(twist_topic, Twist, self.array_callback)
+	rospy.Subscriber(encoder_topic, JointState, self.control_callback)
+
+	self.pub_front_left = rospy.Publisher(front_left_command, Float64, queue_size=10, latch=True)
+	self.pub_front_right = rospy.Publisher(front_right_command, Float64, queue_size=10, latch=True)
+	self.pub_back_left = rospy.Publisher(back_left_command, Float64, queue_size=10, latch=True)
+	self.pub_back_right = rospy.Publisher(back_right_command, Float64, queue_size=10, latch=True)
+
+	#Initialize global variables and constants
+	self.commanded_left = 0
+	self.commanded_right = 0
+
+	self.left_error = 0
+	self.right_error = 0
+
+	self.previous_left_error = 0
+	self.previous_right_error = 0
+
+	self.PID_left = 0
+	self.PID_right = 0
+
+	self.kp = 0.4
+	
+        rospy.loginfo("Publisher Node is loaded...")
+	self.r = rospy.Rate(10)
+	self.updater()
+
+    def control_callback(self,joint_states):
+	#Error calculation
+	self.left_error = self.commanded_left - joint_states.velocity[0]
+	self.right_error = self.commanded_right - joint_states.velocity[3]
+	
+	#PID Value
+	self.PID_left = self.left_error*self.kp
+	self.PID_right = self.right_error*self.kp
+
+    def array_callback(self, twist_array):
+	
+	#Differential Drive
+	self.commanded_left = twist_array.linear.x * 10 + twist_array.angular.z * 12
+	self.commanded_right = twist_array.linear.x * 10 - twist_array.angular.z * 12
+
+    def updater(self):
+	while not rospy.is_shutdown():
+		self.pub_front_left.publish(self.commanded_left + self.PID_left)
+		self.pub_front_right.publish(self.commanded_right + self.PID_right)
+		self.pub_back_left.publish(self.commanded_left + self.PID_left)
+		self.pub_back_right.publish(self.commanded_right + self.PID_right)
+
+		self.r.sleep()
+
+def main(args):
+    	try:
+        	TeleRobot()
+    	except KeyboardInterrupt:
+        	rospy.loginfo("Shutting down publisher node.")
+
+if __name__ == '__main__':
+    main(sys.argv)

@@ -1,0 +1,36 @@
+<launch>
+
+  <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find robot_gazebo)/worlds/robot.world"/>
+    <arg name="gui" value="true" />
+  </include>
+
+
+  <!-- Load the URDF into the ROS Parameter Server -->
+  <param name="robot_description"
+	 command="$(find xacro)/xacro.py '$(find robot_description)/urdf/robot.xacro'" /> 
+
+  <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
+  <node name="robot_spawn" pkg="gazebo_ros" type="spawn_model" output="screen"
+	args="-urdf -param robot_description -model robot" />
+
+  <!-- ros_control robot launch file -->
+  <include file="$(find robot_control)/launch/robot_control.launch" />
+
+  <!-- Gazebo Control Node -->
+  <node name="control_node" pkg="robot_gazebo" type="gazebo_joy.py" output="screen"/>
+	<!--Parameters Subscribed Topics-->
+	<param name="twist_topic" value="/motor_control" />
+	<param name="encoder_topic" value="/robot/joint_states" />
+
+	<!--Parameters for Publishing Topics-->
+	<param name="front_left_topic" value="/robot/frontleftWheel_effort_controller/command" />
+	<param name="front_right_topic" value="/robot/frontrightWheel_effort_controller/command" />
+	<param name="back_left_topic" value="/robot/backleftWheel_effort_controller/command" />
+	<param name="back_right_topic" value="/robot/backrightWheel_effort_controller/command" />
+
+
+
+
+</launch>
